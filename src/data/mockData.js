@@ -524,6 +524,26 @@ export const RECIPES = [
       "Slice the apple.",
       "Serve with creamy peanut butter, which is richer in protein and much cheaper."
     ]
+  },
+  {
+    id: "r22",
+    name: "Whey Protein Shake",
+    category: "Snack",
+    calories: 180,
+    protein: 30,
+    carbs: 5,
+    fats: 2,
+    diets: ["Vegetarian"],
+    cost: 1.50
+  },
+  {
+    id: "r23",
+    name: "Chicken Protein Bowl",
+    category: "Lunch",
+    calories: 620,
+    protein: 55,
+    carbs: 40,
+    fats: 15
   }
 ];
 

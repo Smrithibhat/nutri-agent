@@ -31,7 +31,11 @@ const INITIAL_PLAN = {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
-  const [plannerDayTab, setPlannerDayTab] = useState('Monday');
+  const [plannerDayTab, setPlannerDayTab] = useState(
+    new Date().toLocaleDateString('en-US', {
+      weekday: 'long'
+    })
+  );
   
   // User Profile
   const [profile, setProfile] = useState({
@@ -70,23 +74,53 @@ export default function App() {
 
   // Initialize and update meal plan based on profile selections
   useEffect(() => {
-    const initializedPlan = {};
-    
-    Object.entries(INITIAL_PLAN).forEach(([day, recipeIds]) => {
-      initializedPlan[day] = recipeIds.map(id => getRecipeById(id));
-    });
+  const initializedPlan = {};
 
-    setMealPlan(initializedPlan);
-  }, []);
+  Object.keys(INITIAL_PLAN).forEach(day => {
 
+    if (profile.protein >= 140) {
+      initializedPlan[day] = [
+        getRecipeById('r4'),
+        getRecipeById('r6'),
+        getRecipeById('r13'),
+        getRecipeById('r18')
+      ];
+    }
+
+    else if (profile.protein >= 120) {
+      initializedPlan[day] = [
+        getRecipeById('r3'),
+        getRecipeById('r6'),
+        getRecipeById('r11'),
+        getRecipeById('r18')
+      ];
+    }
+
+    else {
+      initializedPlan[day] = [
+        getRecipeById('r1'),
+        getRecipeById('r7'),
+        getRecipeById('r12'),
+        getRecipeById('r21')
+      ];
+    }
+  });
+
+  setMealPlan(initializedPlan);
+}, [profile.protein]);
   // Sync Logged Meals when active Day changes
   useEffect(() => {
-    // Automatically log first two meals of Monday as pre-checked for demo visibility
-    if (mealPlan['Monday']) {
-      setLoggedMeals([mealPlan['Monday'][0], mealPlan['Monday'][2]]);
-    }
-  }, [mealPlan]);
+  const currentDay = new Date().toLocaleDateString('en-US', {
+    weekday: 'long'
+  });
 
+  if (mealPlan[currentDay]) {
+    setLoggedMeals([
+      mealPlan[currentDay][0],
+      mealPlan[currentDay][2]
+    ]);
+  }
+  }, [mealPlan]);
   // Handle Diet restriction updates
   const applyDietaryRestrictions = (selectedDiets) => {
     if (!mealPlan || Object.keys(mealPlan).length === 0) return;

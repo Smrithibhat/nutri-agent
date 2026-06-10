@@ -12,7 +12,11 @@ export default function Dashboard({
 }) {
   
   // Calculate today's selected meal plan metrics
-  const todayMeals = mealPlan['Monday'] || []; // Defaulting to Monday as a reference for today
+  // Get current day name
+  const currentDay = new Date().toLocaleDateString('en-US', {weekday: 'long'});
+
+// Get meals for today's day
+  const todayMeals = mealPlan[currentDay] || [];// Defaulting to Monday as a reference for today
   
   // Calculate logged values based on checked status
   const loggedCal = loggedMeals.reduce((acc, meal) => acc + meal.calories, 0);
@@ -80,7 +84,7 @@ export default function Dashboard({
         <div className="col-8 glass-panel" style={{ padding: '1.5rem' }}>
           <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Flame style={{ color: 'var(--text-danger)' }} size={20} />
-            Nutrition Tracker (Today)
+            Nutrition Tracker ({currentDay})
           </h3>
           <div className="metric-ring-container">
             {/* Calorie Large Circle */}
@@ -144,7 +148,7 @@ export default function Dashboard({
         <div className="col-8 glass-panel" style={{ padding: '1.5rem' }}>
           <h3 style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <CheckCircle style={{ color: 'var(--primary-light)' }} size={20} />
-            Today's Log Checklist
+            {currentDay}'s Log Checklist
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {todayMeals.map((meal) => {
