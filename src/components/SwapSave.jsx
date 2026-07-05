@@ -1,5 +1,4 @@
-import React from 'react';
-import { RefreshCw, TrendingUp, HelpCircle, ShieldCheck, Award } from 'lucide-react';
+import { RefreshCw, TrendingUp, ShieldCheck, Award } from 'lucide-react';
 
 export default function SwapSave({ 
   mealPlan, 

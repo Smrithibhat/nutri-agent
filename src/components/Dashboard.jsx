@@ -1,4 +1,3 @@
-import React from 'react';
 import { DollarSign, Droplet, Flame, Sparkles, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export default function Dashboard({ 

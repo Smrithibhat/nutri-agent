@@ -1,11 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Send, Bot, User } from 'lucide-react';
+import { isGeminiEnabled } from '../config';
 import { MOCK_CHAT_RESPONSES } from '../data/mockData';
+import { generateLiveChatResponse } from '../services/geminiService';
 
-export default function NutritionAgent({ chatHistory, setChatHistory }) {
+export default function NutritionAgent({ chatHistory, setChatHistory, profile }) {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Check if AI is active based on environment variable
+  const isAiActive = isGeminiEnabled();
 
   const suggestionPills = [
     "High protein meals under $3",
@@ -22,35 +27,55 @@ export default function NutritionAgent({ chatHistory, setChatHistory }) {
     scrollToBottom();
   }, [chatHistory, isTyping]);
 
-  const handleSend = (textToSend) => {
+  const idRef = useRef(1);
+
+  const handleSend = async (textToSend) => {
     if (!textToSend.trim()) return;
 
     // Add user message
     const userMsg = {
-      id: `u-${Date.now()}`,
+      id: `u-${idRef.current++}`,
       sender: 'user',
       text: textToSend,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setChatHistory(prev => [...prev, userMsg]);
+    const updatedHistory = [...chatHistory, userMsg];
+    setChatHistory(updatedHistory);
     setInput('');
     setIsTyping(true);
 
-    // Mock AI response delay
-    setTimeout(() => {
-      setIsTyping(false);
-      const matchedResponse = getMockResponse(textToSend);
+    try {
+      let matchedResponse = "";
+      
+      if (isAiActive) {
+        // Live Gemini Call (using Key injected privately at build-time or in Netlify)
+        matchedResponse = await generateLiveChatResponse(textToSend, chatHistory, profile);
+      } else {
+        // Fallback Mock Local Call
+        await new Promise(resolve => setTimeout(resolve, 900)); // Simulate delay
+        matchedResponse = getMockResponse(textToSend);
+      }
       
       const agentMsg = {
-        id: `a-${Date.now()}`,
+        id: `a-${idRef.current++}`,
         sender: 'agent',
         text: matchedResponse,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       
       setChatHistory(prev => [...prev, agentMsg]);
-    }, 900);
+    } catch (error) {
+      const errorMsg = {
+        id: `e-${idRef.current++}`,
+        sender: 'agent',
+        text: `*System Note: Direct Gemini API query encountered an error.*\n\n⚠️ **Error details:** ${error.message}\n\nPlease verify that your Netlify Environment Variable \`VITE_GEMINI_API_KEY\` is configured correctly.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatHistory(prev => [...prev, errorMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const getMockResponse = (query) => {
@@ -65,7 +90,6 @@ export default function NutritionAgent({ chatHistory, setChatHistory }) {
       return found.response;
     }
 
-    // Default intelligent responses
     if (q.includes("hello") || q.includes("hi") || q.includes("hey")) {
       return "Hello! I am your AI Nutrition Agent. How can I help you optimize your health goals or slash your grocery budget today?";
     }
@@ -90,11 +114,8 @@ export default function NutritionAgent({ chatHistory, setChatHistory }) {
   };
 
   const formatMessageText = (text) => {
-    // Process markdown-like formatting for bullet points and bold headers
     return text.split('\n').map((paragraph, index) => {
-      let formatted = paragraph;
       
-      // Bold Markdown formatting **text**
       const boldRegex = /\*\*(.*?)\*\*/g;
       const parts = [];
       let lastIndex = 0;
@@ -114,9 +135,7 @@ export default function NutritionAgent({ chatHistory, setChatHistory }) {
       
       const content = parts.length > 0 ? parts : paragraph;
 
-      // Check for bullet lists
       if (paragraph.trim().startsWith('*') && paragraph.trim().endsWith('*')) {
-        // It's an italicized pro-tip
         return <p key={index} style={{ fontStyle: 'italic', color: 'var(--text-warning)', marginTop: '0.5rem' }}>{paragraph.replace(/\*/g, '')}</p>;
       }
       
@@ -141,7 +160,7 @@ export default function NutritionAgent({ chatHistory, setChatHistory }) {
             <div key={msg.id} className={`chat-bubble-container ${msg.sender}`}>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', maxWidth: '80%' }}>
                 {msg.sender === 'agent' && (
-                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-full)', background: 'var(--primary-glow)', border: '1px solid var(--border-primary)', display: 'flex', alignItems: 'center', justifycontent: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-full)', background: 'var(--primary-glow)', border: '1px solid var(--border-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Bot size={16} style={{ color: 'var(--primary-light)' }} />
                   </div>
                 )}
@@ -150,7 +169,7 @@ export default function NutritionAgent({ chatHistory, setChatHistory }) {
                   <span className="chat-bubble-time">{msg.timestamp}</span>
                 </div>
                 {msg.sender === 'user' && (
-                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifycontent: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <User size={16} />
                   </div>
                 )}
@@ -191,7 +210,7 @@ export default function NutritionAgent({ chatHistory, setChatHistory }) {
             <input
               type="text"
               className="chat-input"
-              placeholder="Ask about meal plans, swaps, or allergen substitutes..."
+              placeholder={isAiActive ? "Chat with live Google Gemini..." : "Ask about meal plans, swaps, or allergen substitutes..."}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyPress}

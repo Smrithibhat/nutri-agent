@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Clock, DollarSign, Eye, Sparkles, X, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, DollarSign, Eye, Sparkles, X } from 'lucide-react';
 
 export default function MealPlanner({ 
   mealPlan, 
@@ -8,14 +8,13 @@ export default function MealPlanner({
   activeTab, 
   setActiveTab, 
   optimizeBudgetToggle,
-  setOptimizeBudgetToggle 
+  toggleOptimizeBudget 
 }) {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const todayMeals = mealPlan[activeTab] || [];
 
-  // Calculate day total cost & calories
   const dayCost = todayMeals.reduce((acc, meal) => acc + meal.cost, 0);
   const dayCalories = todayMeals.reduce((acc, meal) => acc + meal.calories, 0);
 
@@ -26,8 +25,6 @@ export default function MealPlanner({
   const handleCloseRecipe = () => {
     setSelectedRecipe(null);
   };
-
-  // Find if there is an alternative for an ingredient/recipe
   const getSwapInfo = (swapId) => {
     return budgetSwaps.find(s => s.id === swapId);
   };
@@ -62,7 +59,7 @@ export default function MealPlanner({
           <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Plan-wide Budget Optimizer</span>
           <button 
             className={`btn ${optimizeBudgetToggle ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setOptimizeBudgetToggle(!optimizeBudgetToggle)}
+            onClick={() => toggleOptimizeBudget()}
             style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem' }}
           >
             <Sparkles size={16} />

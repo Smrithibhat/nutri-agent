@@ -1,7 +1,7 @@
-import React from 'react';
-import { User, DollarSign, Award, ShieldAlert } from 'lucide-react';
+import { User, Award, ShieldAlert, Sparkles, RefreshCw, Info } from 'lucide-react';
 
-export default function UserProfile({ profile, setProfile, onSave }) {
+export default function UserProfile({ profile, setProfile, onSave, onGeneratePlan, isGeneratingPlan, isAiActive }) {
+
   const handleTextChange = (e) => {
     const { name, value } = e.target;
     setProfile(prev => ({ ...prev, [name]: value }));
@@ -42,6 +42,7 @@ export default function UserProfile({ profile, setProfile, onSave }) {
   return (
     <div className="profile-view animate-slide-up">
       <div className="glass-panel" style={{ padding: '2rem', marginBottom: '1.5rem' }}>
+        
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
           <User className="logo-icon" size={24} />
           <h2 style={{ fontSize: '1.5rem' }}>Personal Profile & Targets</h2>
@@ -147,11 +148,52 @@ export default function UserProfile({ profile, setProfile, onSave }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-            <button className="btn btn-primary" onClick={onSave}>Save Settings</button>
+          {/* Action Row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+              <Info size={16} style={{ color: isAiActive ? 'var(--primary-light)' : 'var(--text-muted)' }} />
+              <span>
+                {isAiActive 
+                  ? "Gemini API environment variable detected. Live generation enabled!" 
+                  : "Running in Offline Demo Mode. Custom compiler will process menus."
+                }
+              </span>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button className="btn btn-secondary" onClick={onSave}>Save Settings</button>
+              <button 
+                className="btn btn-primary" 
+                onClick={onGeneratePlan}
+                disabled={isGeneratingPlan}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                {isGeneratingPlan ? (
+                  <>
+                    <RefreshCw className="spin" size={16} />
+                    Generating Menu...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    {isAiActive ? "Generate AI Meal Plan" : "Generate Dynamic Menu"}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .spin {
+          animation: rotate 1.5s linear infinite;
+        }
+      `}} />
     </div>
   );
 }

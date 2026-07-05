@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { 
   LayoutDashboard, 
   CalendarDays, 
@@ -7,39 +7,47 @@ import {
   UserSquare2, 
   Apple, 
   Sparkles, 
-  ChevronRight,
-  TrendingUp
+  Bot
 } from 'lucide-react';
 
 import { RECIPES, BUDGET_SWAPS, DEFAULT_CHAT_HISTORY } from './data/mockData';
+import { generateLiveMealPlan } from './services/geminiService';
+import { isGeminiEnabled } from './config';
 import Dashboard from './components/Dashboard';
 import MealPlanner from './components/MealPlanner';
 import SwapSave from './components/SwapSave';
 import NutritionAgent from './components/NutritionAgent';
 import UserProfile from './components/UserProfile';
 
-// Initial meal plan template (Monday - Sunday) with a mix of high-cost items
+// Initial default meal plan template
 const INITIAL_PLAN = {
-  Monday: ['r2', 'r6', 'r11', 'r17'],     // Avocado Toast, Salmon Quinoa, Chicken Asparagus, Mixed Nuts
-  Tuesday: ['r4', 'r9', 'r15', 'r20'],    // Yogurt Parfait, Beef Broccoli, Lentil Curry, Apple Almond Butter
-  Wednesday: ['r1', 'r8', 'r13', 'r19'],   // Oatmeal, Chickpea Salad, Salmon Fettuccine, Hummus Veggies
-  Thursday: ['r2', 'r7', 'r16', 'r17'],   // Avocado Toast, Tuna Barley Bowl, Beef Chili, Mixed Nuts
-  Friday: ['r4', 'r6', 'r12', 'r20'],     // Yogurt Parfait, Salmon Quinoa, Chicken Green Beans, Apple Almond Butter
-  Saturday: ['r1', 'r10', 'r11', 'r19'],  // Oatmeal, Tofu Stir-Fry, Chicken Asparagus, Hummus Veggies
-  Sunday: ['r2', 'r8', 'r13', 'r21']      // Avocado Toast, Chickpea Salad, Salmon Fettuccine, Apple Peanut Butter
+  Monday: ['r2', 'r6', 'r11', 'r17'],     
+  Tuesday: ['r4', 'r9', 'r15', 'r20'],    
+  Wednesday: ['r1', 'r8', 'r13', 'r19'],   
+  Thursday: ['r2', 'r7', 'r16', 'r17'],   
+  Friday: ['r4', 'r6', 'r12', 'r20'],     
+  Saturday: ['r1', 'r10', 'r11', 'r19'],  
+  Sunday: ['r2', 'r8', 'r13', 'r21']      
 };
+
+const LOADER_TIPS = [
+  "Frozen green beans and canned mackerel can reduce your week's grocery bill by up to $25!",
+  "Buying oats, lentils, and brown rice in bulk is the easiest way to hit complex carbohydrate targets cheaply.",
+  "Replacing premium ribeye steak with extra firm tofu and eggs keeps protein high while cutting costs by 70%.",
+  "Thawing frozen mixed berries locks in vitamins and creates a natural syrup at a fraction of the cost of fresh berries.",
+  "Peanuts have higher protein content (26g/100g) than almonds or walnuts and cost 80% less."
+];
+
+// Helper to get current weekday name (e.g., Monday)
+const getCurrentDayName = () => new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
-  const [plannerDayTab, setPlannerDayTab] = useState(
-    new Date().toLocaleDateString('en-US', {
-      weekday: 'long'
-    })
-  );
+  const [plannerDayTab, setPlannerDayTab] = useState(getCurrentDayName());
   
   // User Profile
   const [profile, setProfile] = useState({
-    name: 'Smrithi',
+    name: 'Smruthi',
     budget: 15.00,
     goal: 'Balanced Diet',
     calories: 2000,
@@ -49,14 +57,12 @@ export default function App() {
     diets: []
   });
 
-  // Plan State - contains Recipe Objects
-  const [mealPlan, setMealPlan] = useState({});
-  const [savedAmount, setSavedAmount] = useState(0);
-  const [optimizeBudgetToggle, setOptimizeBudgetToggle] = useState(false);
+  // Check if AI is active based on environment variable (injected privately by Netlify)
+  const isAiActive = isGeminiEnabled();
 
-  // Daily Logger State
-  const [waterIntake, setWaterIntake] = useState(0);
-  const [loggedMeals, setLoggedMeals] = useState([]);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [planGenerationStep, setPlanGenerationStep] = useState(1);
+  const [currentLoaderTip, setCurrentLoaderTip] = useState(LOADER_TIPS[0]);
 
   // Chat History
   const [chatHistory, setChatHistory] = useState(DEFAULT_CHAT_HISTORY);
@@ -72,56 +78,62 @@ export default function App() {
   // Build recipe references
   const getRecipeById = (id) => RECIPES.find(r => r.id === id);
 
-  // Initialize and update meal plan based on profile selections
-  useEffect(() => {
-  const initializedPlan = {};
+  // Initialize meal plan and logged meals (lazy initialization)
+  const initialMealPlan = (() => {
+    const initializedPlan = {};
+    Object.entries(INITIAL_PLAN).forEach(([day, recipeIds]) => {
+      initializedPlan[day] = recipeIds.map(id => getRecipeById(id));
+    });
+    return initializedPlan;
+  })();
 
-  Object.keys(INITIAL_PLAN).forEach(day => {
+  const [mealPlan, setMealPlan] = useState(initialMealPlan);
+  const [savedAmount, setSavedAmount] = useState(0);
+  const [optimizeBudgetToggle, setOptimizeBudgetToggle] = useState(false);
 
-    if (profile.protein >= 140) {
-      initializedPlan[day] = [
-        getRecipeById('r4'),
-        getRecipeById('r6'),
-        getRecipeById('r13'),
-        getRecipeById('r18')
-      ];
-    }
-
-    else if (profile.protein >= 120) {
-      initializedPlan[day] = [
-        getRecipeById('r3'),
-        getRecipeById('r6'),
-        getRecipeById('r11'),
-        getRecipeById('r18')
-      ];
-    }
-
-    else {
-      initializedPlan[day] = [
-        getRecipeById('r1'),
-        getRecipeById('r7'),
-        getRecipeById('r12'),
-        getRecipeById('r21')
-      ];
-    }
+  // Daily Logger State
+  const [waterIntake, setWaterIntake] = useState(0);
+  const [loggedMeals, setLoggedMeals] = useState(() => {
+    const today = initialMealPlan[getCurrentDayName()] || [];
+    return [today[0], today[2]].filter(Boolean);
   });
 
-  setMealPlan(initializedPlan);
-}, [profile.protein]);
-  // Sync Logged Meals when active Day changes
-  useEffect(() => {
-  const currentDay = new Date().toLocaleDateString('en-US', {
-    weekday: 'long'
-  });
+  // Helper: Sifts local dataset to return a customized plan dynamically
+  const generateLocalDynamicPlan = (userProfile) => {
+    const selectedDiets = userProfile.diets;
+    const targets = {
+      Breakfast: RECIPES.filter(r => r.category === 'Breakfast'),
+      Lunch: RECIPES.filter(r => r.category === 'Lunch'),
+      Dinner: RECIPES.filter(r => r.category === 'Dinner'),
+      Snack: RECIPES.filter(r => r.category === 'Snack')
+    };
 
-  if (mealPlan[currentDay]) {
-    setLoggedMeals([
-      mealPlan[currentDay][0],
-      mealPlan[currentDay][2]
-    ]);
-  }
-  }, [mealPlan]);
-  // Handle Diet restriction updates
+    const updatedPlan = {};
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    days.forEach(day => {
+      updatedPlan[day] = ['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(category => {
+        const pool = targets[category];
+        // Filter pool by dietary restrictions
+        let matching = pool.filter(recipe => 
+          selectedDiets.every(diet => recipe.diets.includes(diet))
+        );
+
+        // Fallback to full pool if no recipes match all criteria
+        if (matching.length === 0) {
+          matching = pool;
+        }
+
+        // Return a random recipe from matching pool to simulate AI generation variety
+        const randomIndex = Math.floor(Math.random() * matching.length);
+        return matching[randomIndex];
+      });
+    });
+
+    return updatedPlan;
+  };
+
+  // Triggered when saving dietary profile options (used to filter dynamic layouts)
   const applyDietaryRestrictions = (selectedDiets) => {
     if (!mealPlan || Object.keys(mealPlan).length === 0) return;
 
@@ -130,11 +142,9 @@ export default function App() {
 
     Object.entries(mealPlan).forEach(([day, dayMeals]) => {
       updatedPlan[day] = dayMeals.map(meal => {
-        // If meal doesn't match selected diets, find one that does
         const matchesDiet = selectedDiets.every(diet => meal.diets.includes(diet));
         if (matchesDiet) return meal;
 
-        // Find fallback recipe in same category
         const fallback = RECIPES.find(r => 
           r.category === meal.category && 
           selectedDiets.every(diet => r.diets.includes(diet))
@@ -144,7 +154,7 @@ export default function App() {
           changesMade = true;
           return fallback;
         }
-        return meal; // Return original if no fallback matches all constraints
+        return meal;
       });
     });
 
@@ -154,50 +164,48 @@ export default function App() {
     }
   };
 
-  // Plan-wide Budget Optimizer logic
-  useEffect(() => {
-    if (!mealPlan || Object.keys(mealPlan).length === 0) return;
+  // Toggle budget optimizer: apply or revert swaps immediately
+  const toggleOptimizeBudget = () => {
+    const newToggle = !optimizeBudgetToggle;
+    setOptimizeBudgetToggle(newToggle);
 
-    const updatedPlan = {};
-    let totalSaved = 0;
+    setMealPlan(prevPlan => {
+      if (!prevPlan || Object.keys(prevPlan).length === 0) return prevPlan;
 
-    Object.entries(mealPlan).forEach(([day, dayMeals]) => {
-      updatedPlan[day] = dayMeals.map(meal => {
-        if (optimizeBudgetToggle) {
-          // If we are optimizing, check if any swap exists for this meal
-          const swap = BUDGET_SWAPS.find(s => Object.keys(s.recipesToSwap).includes(meal.id));
-          if (swap) {
-            const alternativeId = swap.recipesToSwap[meal.id];
-            const alternative = getRecipeById(alternativeId);
-            if (alternative) {
-              totalSaved += swap.savings;
-              return alternative;
+      const updatedPlan = {};
+      let totalSaved = 0;
+
+      Object.entries(prevPlan).forEach(([day, dayMeals]) => {
+        updatedPlan[day] = dayMeals.map(meal => {
+          if (newToggle) {
+            const swap = BUDGET_SWAPS.find(s => Object.keys(s.recipesToSwap).includes(meal.id));
+            if (swap) {
+              const alternativeId = swap.recipesToSwap[meal.id];
+              const alternative = getRecipeById(alternativeId);
+              if (alternative) {
+                totalSaved += swap.savings;
+                return alternative;
+              }
+            }
+          } else {
+            const swap = BUDGET_SWAPS.find(s => Object.values(s.recipesToSwap).includes(meal.id));
+            if (swap) {
+              const expensiveId = Object.keys(swap.recipesToSwap).find(key => swap.recipesToSwap[key] === meal.id);
+              const expensive = getRecipeById(expensiveId);
+              if (expensive) return expensive;
             }
           }
-        } else {
-          // If turning off optimization, check if this is a swapped alternative and we can restore the expensive one
-          const swap = BUDGET_SWAPS.find(s => Object.values(s.recipesToSwap).includes(meal.id));
-          if (swap) {
-            const expensiveId = Object.keys(swap.recipesToSwap).find(key => swap.recipesToSwap[key] === meal.id);
-            const expensive = getRecipeById(expensiveId);
-            if (expensive) {
-              return expensive;
-            }
-          }
-        }
-        return meal;
+          return meal;
+        });
       });
+
+      setSavedAmount(newToggle ? totalSaved / 7 : 0);
+      if (newToggle) showToast(`Budget Optimizer Active! Weekly cost slashed by $${totalSaved.toFixed(2)}.`);
+      else showToast('Budget Optimizer disabled. Restored original plan.');
+
+      return updatedPlan;
     });
-
-    setMealPlan(updatedPlan);
-    setSavedAmount(optimizeBudgetToggle ? totalSaved / 7 : 0); // Average daily saving
-
-    if (optimizeBudgetToggle) {
-      showToast(`Budget Optimizer Active! Weekly cost slashed by $${totalSaved.toFixed(2)}.`);
-    } else {
-      showToast("Budget Optimizer disabled. Restored original plan.");
-    }
-  }, [optimizeBudgetToggle]);
+  };
 
   // Swap recipe on a specific day
   const handleRecipeSwap = (day, oldRecipeId, newRecipeId, savings) => {
@@ -234,6 +242,61 @@ export default function App() {
     showToast("Profile settings saved successfully!");
   };
 
+  // Generate dynamic 7-day meal plan
+  const handleGeneratePlan = async () => {
+    setIsGeneratingPlan(true);
+    setPlanGenerationStep(1);
+    setCurrentLoaderTip(LOADER_TIPS[Math.floor(Math.random() * LOADER_TIPS.length)]);
+
+    // Progress bar animations
+    const step2Timer = setTimeout(() => setPlanGenerationStep(2), 1500);
+    const step3Timer = setTimeout(() => setPlanGenerationStep(3), 3200);
+
+    try {
+      if (isAiActive) {
+        // Live Gemini Generation (using private VITE_GEMINI_API_KEY environment variable)
+        const livePlan = await generateLiveMealPlan(profile);
+        clearTimeout(step2Timer);
+        clearTimeout(step3Timer);
+        setPlanGenerationStep(4);
+        setMealPlan(livePlan);
+        // Reset logged meals to first and third meal of Monday
+        setLoggedMeals(() => {
+          const monday = livePlan['Monday'] || [];
+          return [monday[0], monday[2]].filter(Boolean);
+        });
+        showToast("Gemini AI generated a customized meal plan successfully!");
+      } else {
+        // Local Dynamic compilation Fallback (Simulates AI with local database filtering)
+        await new Promise(resolve => setTimeout(resolve, 3800)); // Maintain loaders for aesthetic impact
+        clearTimeout(step2Timer);
+        clearTimeout(step3Timer);
+        setPlanGenerationStep(4);
+        const compiledPlan = generateLocalDynamicPlan(profile);
+        setMealPlan(compiledPlan);
+        setLoggedMeals(() => {
+          const monday = compiledPlan['Monday'] || [];
+          return [monday[0], monday[2]].filter(Boolean);
+        });
+        showToast("Dynamic meal plan compiled successfully!");
+      }
+
+      setOptimizeBudgetToggle(false); 
+      setSavedAmount(0);
+      
+      setTimeout(() => {
+        setIsGeneratingPlan(false);
+      }, 500);
+
+    } catch (error) {
+      clearTimeout(step2Timer);
+      clearTimeout(step3Timer);
+      setIsGeneratingPlan(false);
+      showToast(`Generation failed: ${error.message}`, "error");
+      console.error(error);
+    }
+  };
+
   const renderActiveView = () => {
     switch(activeTab) {
       case 'Dashboard':
@@ -257,7 +320,7 @@ export default function App() {
             activeTab={plannerDayTab}
             setActiveTab={setPlannerDayTab}
             optimizeBudgetToggle={optimizeBudgetToggle}
-            setOptimizeBudgetToggle={setOptimizeBudgetToggle}
+            toggleOptimizeBudget={toggleOptimizeBudget}
           />
         );
       case 'Swap & Save':
@@ -274,6 +337,7 @@ export default function App() {
           <NutritionAgent 
             chatHistory={chatHistory}
             setChatHistory={setChatHistory}
+            profile={profile}
           />
         );
       case 'Profile':
@@ -282,6 +346,9 @@ export default function App() {
             profile={profile}
             setProfile={setProfile}
             onSave={handleProfileSave}
+            onGeneratePlan={handleGeneratePlan}
+            isGeneratingPlan={isGeneratingPlan}
+            isAiActive={isAiActive}
           />
         );
       default:
@@ -339,7 +406,14 @@ export default function App() {
       <main className="main-content">
         <header className="view-header">
           <div className="view-title">
-            <h1>{activeTab}</h1>
+            <h1>
+              {activeTab}
+              {isAiActive && activeTab === 'Nutrition Agent' && (
+                <span style={{ fontSize: '0.85rem', verticalAlign: 'middle', background: 'var(--primary-glow)', color: 'var(--primary-light)', border: '1px solid var(--border-primary)', padding: '0.15rem 0.5rem', borderRadius: '4px', marginLeft: '0.75rem' }}>
+                  Live AI Mode
+                </span>
+              )}
+            </h1>
             <p className="view-subtitle">
               {activeTab === 'Dashboard' && `Welcome back, ${profile.name}! Track your metrics and log water.`}
               {activeTab === 'Meal Planner' && "Browse your weekly meal plan calendar, check ingredients and view recipe cards."}
@@ -352,6 +426,42 @@ export default function App() {
 
         {renderActiveView()}
       </main>
+
+      {/* Full screen generative loader overlay */}
+      {isGeneratingPlan && (
+        <div className="loader-overlay">
+          <div className="loader-card glass-panel animate-slide-up">
+            <div className="loader-glow-circle">
+              <Bot size={38} style={{ color: 'var(--primary-light)' }} />
+            </div>
+            <h2 className="loader-title">{isAiActive ? "Generating AI Meal Plan" : "Compiling Dynamic Menu"}</h2>
+            <p className="loader-subtitle">{isAiActive ? "Connecting to Google Gemini 1.5 Flash..." : "Processing recipes based on macro profiles..."}</p>
+            
+            <div className="loader-steps">
+              <div className={`loader-step-item ${planGenerationStep >= 1 ? (planGenerationStep > 1 ? 'completed' : 'active') : ''}`}>
+                <div className="loader-step-dot"></div>
+                <span>{isAiActive ? "Securing link to Google Gemini AI API..." : "Analyzing daily calorie and macro restrictions..."}</span>
+              </div>
+              <div className={`loader-step-item ${planGenerationStep >= 2 ? (planGenerationStep > 2 ? 'completed' : 'active') : ''}`}>
+                <div className="loader-step-dot"></div>
+                <span>{isAiActive ? "Structuring customized daily meal templates..." : "Sifting database for categories (Breakfast, Lunch, Dinner, Snacks)..."}</span>
+              </div>
+              <div className={`loader-step-item ${planGenerationStep >= 3 ? (planGenerationStep > 3 ? 'completed' : 'active') : ''}`}>
+                <div className="loader-step-dot"></div>
+                <span>{isAiActive ? `Adjusting ingredients to fit $${profile.budget.toFixed(2)} budget...` : `Filtering cost estimates under $${profile.budget.toFixed(2)} daily target...`}</span>
+              </div>
+              <div className={`loader-step-item ${planGenerationStep >= 4 ? 'completed' : ''}`}>
+                <div className="loader-step-dot"></div>
+                <span>{isAiActive ? "Finalizing nutrient counts and calorie balancing..." : "Formatting 7-day calendar view..."}</span>
+              </div>
+            </div>
+
+            <div className="loader-tips-box">
+              <strong>Smart Tip:</strong> {currentLoaderTip}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (
