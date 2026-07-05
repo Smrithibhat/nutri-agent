@@ -2,67 +2,38 @@
  * Google Gemini 1.5 Flash API Service Layer for NutriAgent
  */
 
-import { GEMINI_API_KEY } from '../config';
-
-// Read API Key from centralized config
-const getApiKey = () => GEMINI_API_KEY || '';
-
-// Helper to make POST request to Gemini
+// Use Netlify Function proxy to keep API key server-side. The proxy endpoint
+// is at '/.netlify/functions/gemini-proxy' and returns JSON { text }.
 async function callGeminiAPI(prompt, isJsonMode = false) {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("Gemini API Key is not set in environment variables.");
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  
-  const requestBody = {
-    contents: [
-      {
-        parts: [
-          {
-            text: prompt
-          }
-        ]
-      }
-    ]
-  };
-
-  if (isJsonMode) {
-    requestBody.generationConfig = {
-      responseMimeType: "application/json"
-    };
-  }
-
-  const response = await fetch(url, {
+  const resp = await fetch('/.netlify/functions/gemini-proxy', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, isJsonMode })
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData.error?.message || `HTTP error! status: ${response.status}`;
-    throw new Error(message);
+  if (!resp.ok) {
+    const err = await resp.json().catch(async () => ({ error: await resp.text() }));
+    throw new Error(err.error || 'Gemini proxy error');
   }
 
-  const data = await response.json();
-  const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  
-  if (!textOutput) {
-    throw new Error("Empty response received from Gemini API");
-  }
-
+  const data = await resp.json();
+  const textOutput = data.text;
+  if (!textOutput) throw new Error('Empty response received from Gemini proxy');
   return textOutput;
 }
 
 /**
  * Checks if the Gemini API Key is configured in the environment
  */
-export function isGeminiConfigured() {
-  return !!getApiKey();
+export async function isGeminiConfigured() {
+  try {
+    const resp = await fetch('/.netlify/functions/gemini-proxy?ping=1');
+    if (!resp.ok) return false;
+    const data = await resp.json().catch(() => ({}));
+    return !!data.enabled;
+  } catch {
+    return false;
+  }
 }
 
 /**

@@ -15,7 +15,7 @@ export default function Dashboard({
   const currentDay = new Date().toLocaleDateString('en-US', {weekday: 'long'});
 
 // Get meals for today's day
-  const todayMeals = mealPlan[currentDay] || [];// Defaulting to Monday as a reference for today
+  const todayMeals = mealPlan[currentDay] || [];
   
   // Calculate logged values based on checked status
   const loggedCal = loggedMeals.reduce((acc, meal) => acc + meal.calories, 0);

@@ -2,24 +2,32 @@ Netlify environment configuration for NutriAgent
 
 Add the following Environment Variable in your Netlify site settings (Site settings → Build & deploy → Environment):
 
-- Key: VITE_GEMINI_API_KEY
-- Value: <your-google-gemini-api-key>
+- Server-side (recommended):
+  - Key: `GEMINI_API_KEY` (or `NETLIFY_GEMINI_API_KEY`)
+  - Value: <your-google-gemini-api-key>
+
+- Optional client-side indicator (not required when using server proxy):
+  - Key: `VITE_GEMINI_API_KEY`
+  - Value: any non-empty value (used only to display "Live AI Mode" in the UI)
 
 Notes:
 
-- Netlify exposes environment variables at build time for Vite applications when prefixed with `VITE_`.
-- After adding the variable, trigger a site redeploy so the build picks up the key.
-- Keep this key private — do not commit it to source control.
+- The project now uses a serverless Netlify Function `/.netlify/functions/gemini-proxy` so the real API key never gets embedded in the browser bundle.
+- Add `GEMINI_API_KEY` to Netlify and redeploy — the server function will use it to call Google Gemini.
+- If you also set `VITE_GEMINI_API_KEY`, the UI will show the Live AI indicator (this value is embedded into the client at build-time — do NOT use the real secret here if you want to keep it private).
 
 Local development:
 
-- To test locally, create a `.env` file in the project root with the following line:
+- To test the serverless proxy locally with Netlify CLI, create a `.env` file in the project root with:
 
-  VITE_GEMINI_API_KEY=your_local_test_key
+  GEMINI_API_KEY=your_server_side_key_here
+  VITE_GEMINI_API_KEY=1 # optional, for UI indicator
 
-- Restart your dev server after changing `.env`.
+- Start Netlify dev (requires Netlify CLI):
+
+  netlify dev
 
 Security:
 
-- Use Netlify's environment variable feature or other secret managers to keep keys out of source control.
-- Rotate keys regularly and restrict access where possible.
+- Using the Netlify Function proxy keeps the API key server-side and out of the browser. This is the recommended approach for production.
+- Rotate keys regularly and restrict usage in Google Cloud Console.
